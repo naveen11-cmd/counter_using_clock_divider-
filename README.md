@@ -41,24 +41,32 @@ tb_counter.v - Testbench is used only for simulation.
 # Code
 # Clock Divider 
 ```
-module clock_divider(
+module clk_div(
     input clk,
     input rst,
     output reg slow_clk
 );
 
-    reg [24:0] count;
+reg [3:0] count;
 
-    always @(posedge clk or posedge rst) begin
-        if (rst) begin
+always @(posedge clk or posedge rst)
+begin
+    if(rst)
+    begin
+        count <= 0;
+        slow_clk <= 0;
+    end
+    else
+    begin
+        count <= count + 1;
+
+        if(count == 4)
+        begin
+            slow_clk <= ~slow_clk;
             count <= 0;
-            slow_clk <= 0;
-        end
-        else begin
-            count <= count + 1;
-            slow_clk <= count[24];   // Divide clock
         end
     end
+end
 
 endmodule
 ```
@@ -67,18 +75,21 @@ endmodule
 module up_down_counter(
     input clk,
     input rst,
-    input mode,          // 1 = Up, 0 = Down
-    output reg [3:0] count
+    input mode,
+    output reg [3:0] updown_out
 );
 
-    always @(posedge clk or posedge rst) begin
-        if (rst)
-            count <= 4'b0000;
-        else if (mode)
-            count <= count + 1;
-        else
-            count <= count - 1;
-    end
+always @(posedge clk or posedge rst)
+begin
+    if(rst)
+        updown_out <= 0;
+
+    else if(mode == 0)
+        updown_out <= updown_out + 1;
+
+    else
+        updown_out <= updown_out - 1;
+end
 
 endmodule
 ```
@@ -87,17 +98,20 @@ endmodule
 module mod10_counter(
     input clk,
     input rst,
-    output reg [3:0] count
+    output reg [3:0] mod10_out
 );
 
-    always @(posedge clk or posedge rst) begin
-        if (rst)
-            count <= 4'b0000;
-        else if (count == 4'd9)
-            count <= 4'b0000;
-        else
-            count <= count + 1;
-    end
+always @(posedge clk or posedge rst)
+begin
+    if(rst)
+        mod10_out <= 0;
+
+    else if(mod10_out == 9)
+        mod10_out <= 0;
+
+    else
+        mod10_out <= mod10_out + 1;
+end
 
 endmodule
 ```
@@ -108,44 +122,67 @@ module top_counter(
     input rst,
     input mode,
     output [3:0] updown_out,
-    output [3:0] mod10_out
+    output [3:0] mod10_out,
+    output slow_clk
 );
 
-    wire slow_clk;
+clk_div u1(clk,rst,slow_clk);
 
-    clock_divider cd(clk, rst, slow_clk);
-    up_down_counter ud(slow_clk, rst, mode, updown_out);
-    mod10_counter m10(slow_clk, rst, mod10_out);
+up_down_counter u2(
+    slow_clk,
+    rst,
+    mode,
+    updown_out
+);
+
+mod10_counter u3(
+    slow_clk,
+    rst,
+    mod10_out
+);
 
 endmodule
 ```
 # Testbench
 
 ```
-module tb_counter;
+module top_counter_tb;
 
-    reg clk, rst, mode;
-    wire [3:0] updown_out;
-    wire [3:0] mod10_out;
+reg clk;
+reg rst;
+reg mode;
 
-    top_counter uut(clk, rst, mode, updown_out, mod10_out);
+wire [3:0] updown_out;
+wire [3:0] mod10_out;
+wire slow_clk;
 
-    initial clk = 0;
-    always #5 clk = ~clk;
+top_counter uut(
+    clk,
+    rst,
+    mode,
+    updown_out,
+    mod10_out,
+    slow_clk
+);
 
-    initial begin
-        rst = 1;
-        mode = 1;  // Up mode
-        #20 rst = 0;
+always #5 clk = ~clk;
 
-        #200 mode = 0;  // Down mode
+initial
+begin
+    clk = 0;
+    rst = 1;
+    mode = 0;
 
-        #300 $finish;
-    end
+    #20 rst = 0;
+
+    #100 mode = 1;
+
+    #200 $stop;
+end
 
 endmodule
 ```
 # Output Waveform:
-
+<img width="1919" height="1079" alt="Image" src="https://github.com/user-attachments/assets/e0c139e6-81e3-4171-bea8-b4861ac7238f" />
 # Conclusion
 The 4-bit Up/Down Counter and MOD-10 Counter were successfully designed using Verilog HDL and verified through simulation in Vivado 2023.1. The clock divider was used to generate a slower clock suitable for FPGA implementation. The waveform analysis confirmed correct counting sequences in both up/down and MOD-10 modes.
